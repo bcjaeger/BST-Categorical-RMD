@@ -60,7 +60,7 @@ background-size: 10%
 
 --
 
-### `r icon::fa_comment(pull = 'left', color = 'grey')` A framework for communicating data 
+### `r icon::fa_comment(pull = 'left', color = 'grey')` A framework for communication
 
 
 --
@@ -143,6 +143,10 @@ Recap questions:
 
 3. What may act as a confounding effect?
 
+???
+
+age sex siblings spouses children
+
 ---
 
 # Titanic data
@@ -188,9 +192,14 @@ datatable(
 
 ```
 
+???
+
+check max/min age and spouses
+
 ---
 
 # Characteristics (part 1)
+
 
 ```{r, warning=FALSE}
 
@@ -216,6 +225,9 @@ tibble_one(
 
 ```
 
+???
+
+copy this to word 
 ---
 
 # Characteristics (part 2)
@@ -285,6 +297,10 @@ ttnc %>% #<<
 ttnc
 
 ```
+
+???
+
+there is also a to_word function for MS
 
 ---
 
@@ -481,6 +497,12 @@ main_hypothesis <- hypothesize_that(died ~ class)
 m0
 ```
 
+???
+
+specifications are easily plugged in to analyses
+
+apriori models are almost always nested
+
 ---
 
 # Under the hood
@@ -584,6 +606,10 @@ apri <- main_hypothesis %>% #<<
 main_hypothesis %>% embed_mspecs(m0, m1, m2)
 ```
 
+???
+
+Model specifications and hypotheses come first
+
 ---
 
 # Under the hood
@@ -607,6 +633,10 @@ main_hypothesis %>%
   embed_data(drop_na(ttnc))
 
 ```
+
+???
+
+Data comes second
 
 ---
 
@@ -636,6 +666,14 @@ main_hypothesis %>%
 
 ```
 
+???
+
+models last!
+
+Can be saved if ya want
+
+apri_fits are special types (light)
+
 ---
 
 # Case Study
@@ -659,6 +697,12 @@ How many models did we need to fit for Table 2?
 **Question we'll circle back to**
 
 How many models do we need to fit for Table 3?
+
+???
+
+just three
+
+more than three (11)
 
 ---
 
@@ -724,6 +768,12 @@ kable_data %>%
   footnote(symbol = footer)
 
 ```
+
+???
+
+outcome was rare in some groups 
+
+odds ratios can be high
 
 ---
 class: center, middle, inverse
@@ -773,7 +823,6 @@ apri <- main_hypothesis %>%
 
 ```
 
-
 Or we could do this:
 
 ```{r, echo = TRUE, eval = FALSE}
@@ -790,8 +839,6 @@ apri <- main_hypothesis %>%
   )
 
 ```
-
-(This change will also implement prevalence ratios in Table 2)
 
 ---
 
@@ -856,6 +903,16 @@ kable_data %>%
   pack_rows(index = grp_index) %>% 
   footnote(symbol = footer)
 ```
+
+???
+
+This change will also implement prevalence ratios in Table 2
+
+easy to change footnotes (grouped or separate)
+
+deck crew!!
+
+All crew had 0 siblings, spouses, children
 
 ---
 
