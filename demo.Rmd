@@ -1,0 +1,211 @@
+---
+title: "Untitled"
+author: "Byron C. Jaeger"
+date: "9/25/2019"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+
+this is a demo article using the `tibbleOne` and `rpriori` package to generate clean, accurate, publishable tables.
+
+# Table 1
+
+```{r, warning = FALSE, message = FALSE}
+
+library(tidyverse) # tidyr, dplyr, ggplot2, etc...
+library(rpriori) # for model fitting
+library(DALEX) # contains titanic data
+library(tibbleOne) # table 1
+library(kableExtra) # for printing html/latex tables
+library(geepack) # for gee fits
+
+# factor levels should be capitalized
+# a function to make them capitalized is below
+
+cap_levels <- function(x){
+  
+  out <- factor(
+    x = x,
+    levels = levels(x),
+    labels = Hmisc::capitalize(levels(x))
+  )
+  
+  out
+  
+}
+
+ttnc <- as_tibble(titanic) %>% 
+  mutate(
+    died = factor(
+      survived == 'no',
+      levels = c(FALSE, TRUE),
+      labels = c("No","Yes")
+    )
+  ) %>% 
+  mutate_if(is.factor, cap_levels) %>% 
+  select(died, gender, age, class, sibsp, parch)
+
+
+ttnc <- ttnc %>% 
+  set_variable_labels(
+    died = "Died in crash",
+    gender = "Sex at birth",
+    age = "Age, years",
+    class = "Ticket Class",
+    sibsp = "No. siblings / spouses",
+    parch = "No. parents / children"
+  ) %>% 
+  set_variable_notes(
+    class = "victualling = provide with food or other stores."
+    )
+
+tibble_one(
+  data = ttnc, 
+  formula = ~ . | died
+) %>% 
+  to_kable(escape = FALSE) %>% 
+  kable_styling()
+
+```
+
+
+# Table 2
+
+Ticket class versus survival
+
+```{r}
+
+ttnc$age <- ttnc$age / 10
+ttnc$died <- as.numeric(ttnc$died) - 1
+
+# Make an unadjusted model
+m0  <- mspec_empty("Model 0")
+# Model 1 includes adjustment for sex and age
+m1  <- mspec_add(m0, name = "Model 1", gender, age)
+# Model 2 = model 1 + no. of siblings/spouses
+m2 <- mspec_add(m1, sibsp, parch, name = 'Model 2')
+
+
+# start the apriori workflow:
+# 1. declare hypothesis
+# 2. specify models (apriori)
+# 3. identify data to test hypothesis
+# 4. fit models using the given specifications + data
+
+# 1. what are we trying to answer?
+apri <- hypothesize_that(died ~ class) %>% 
+  embed_mspecs(m0, m1, m2) %>% # 2. model specs
+  embed_data( # 3. identify data
+    data = drop_na(ttnc), # drops missing rows
+    class = 'Ticket class',
+    gender = 'Sex',
+    age = c('Passenger age', '10 years'), 
+    sibsp = c('No. of siblings/spouses', "+ 1"),
+    parch = c('No. of parents/children', "+ 1")
+  ) %>% 
+  embed_fits( # 4. fit models
+    engine = 'gee', 
+    family = poisson(link = 'log'),
+    keep_models = FALSE
+  )
+
+table_cols <- c('name', levels(ttnc$class))
+ncols <- length(table_cols)
+footer <- get_model_footers(apri, m0, m1, m2)
+
+apri %>% 
+  hoist_effect(class, ci = 0.95, transform = exp) %>% 
+  pull_analysis() %>% 
+  select_at(table_cols) %>% 
+  kable(
+    col.names = c(
+      glue::glue("Model{footnote_marker_symbol(1)}"), names(.)[-1]
+    ), 
+    align = 'lccc', 
+    format = 'html',
+    escape = FALSE,
+    caption = glue::glue("Odds ratios (95% confidence limits) \\
+      for survival on the titanic, stratified by ticket class")
+  ) %>% 
+  kable_styling(full_width = FALSE, bootstrap_options = c('striped')) %>% 
+  add_header_above(header = c(" " = 1, "Ticket Class" = ncols - 1)) %>% 
+  footnote(symbol = glue::glue_collapse(footer, sep = ' '))
+
+```
+
+
+# Table 3
+
+```{r}
+
+lbl <- map(apri$fit_data, attr, 'label') %>% 
+  purrr::discard(is.null)
+
+apri_tbl <- apri %>%
+  pull_analysis() %>% 
+  mutate(mdl_smry = map(fit, summary)) %>% 
+  select(name, mdl_smry) %>% 
+  unnest(cols = mdl_smry) %>% 
+  mutate(
+    variable = recode(variable, !!!lbl),
+    tbl_value = fmt_effect(
+      effect = estimate,
+      std.error = std.error,
+      transform = exp,
+      conf_level = 0.95,
+      reference_index = which(ref),
+      reference_label = '1 (reference)'
+    )
+  ) %>% 
+  select(name, variable, level, tbl_value) %>% 
+  spread(name, tbl_value) 
+
+kable_data <- apri_tbl %>% 
+  group_by(variable) %>% 
+  mutate(n = n()) %>% 
+  ungroup() %>% 
+  arrange(n, variable) %>% 
+  mutate_if(is.factor, as.character) %>% 
+  mutate(
+    level = if_else(
+      n == 1,
+      paste(variable, level, sep = ', '), 
+      level
+    )
+  )
+
+grp_index <- table(kable_data$variable)
+names(grp_index)[grp_index==1] <- " "
+
+control <- list(m0, m1, m2)
+footer <- map_chr(control, mspec_describe)
+
+model_recoder <- control %>% 
+  map_chr('name') %>% 
+  paste0(footnote_marker_symbol(1:length(.)))
+
+footnote_symbols <- kableExtra::footnote_marker_symbol(1:5)
+
+kable_data %>% 
+  select(-variable, -n) %>% 
+  kable(
+    align = c('l',rep('c',ncol(.)-1)),
+    col.names = c("Characteristic", model_recoder),
+    escape = FALSE
+  ) %>% 
+  kable_styling(full_width = TRUE) %>% 
+  pack_rows(index = grp_index) %>% 
+  footnote(symbol = footer)
+
+
+```
+
